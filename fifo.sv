@@ -1,26 +1,3 @@
-/*
-  Dual-clock asynchronous FIFO design and testbench in SystemVerilog
-  Based on Cliff Cumming's Simulation and Synthesis Techniques for Asynchronous FIFO Design
-  http://www.sunburst-design.com/papers/CummingsSNUG2002SJ_FIFO1.pdf
-
-  Copyright (C) 2015 Jason Yu (http://www.verilogpro.com)
-
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
-//
 // Top level wrapper
 //
 module async_fifo1
@@ -46,6 +23,97 @@ module async_fifo1
   fifomem #(DSIZE, ASIZE) fifomem (.*);
   rptr_empty #(ASIZE) rptr_empty (.*);
   wptr_full #(ASIZE) wptr_full (.*);
+
+
+//=========== 1
+  property check_full(wclk, wrst_n, wfull, wptr);
+        @ (posedge wclk) disable iff (!wrst_n)
+        (wfull) |=> @ (posedge wclk) wptr == $past (wptr);
+    endproperty
+
+    assert property(check_full(wclk, wrst_n, wfull, wptr))
+    else 
+        $info($stime,"%m Check wr_ptr full FAIL");
+ //===================
+
+ //=============2
+  property check_empty(rclk, rrst_n, rempty, rptr);
+        @ (posedge rclk) disable iff (!rrst_n)
+        (rempty) |=> @ (posedge rclk) (rptr) == $past(rptr);
+  endproperty
+
+    assert property(check_empty(rclk, rrst_n, rempty, rptr))
+
+    else 
+        $info($stime,"%m Check rd_ptr full FAIL");
+ //===================
+
+ //==================3
+
+ property full_empty;
+  @(posedge wclk) disable iff (!wrst_n) (wfull) |=> 
+  @(posedge rclk) (!rempty);
+endproperty
+
+assert property(full_empty)
+else
+$info("FULL EMPTY FAILED");
+
+//===============================
+
+//================= 4
+property empty_full;
+@(posedge rclk) disable iff (!rrst_n) (rempty) |=> 
+@(posedge wclk) (!wfull);
+endproperty
+
+assert property(empty_full)
+
+else
+$display("EMPTY FULL FAILED");
+
+//===================================
+
+//=================== 5
+
+property reset_n_rclk;
+@ (posedge rclk) !rrst_n |-> rempty;
+endproperty
+
+assert property(reset_n_rclk)
+$info("READ RESET PASSED");
+else
+$info("READ RESET FAILED");
+
+//=================================
+
+//=================== 6
+
+property reset_n_wclk;
+@ (posedge wclk) !wrst_n |-> !wfull;
+endproperty
+
+assert property(reset_n_wclk)
+$info("WRITE RESET PASSED");
+else
+$info("WRITE RESET FAILED");
+
+//=================================
+
+  
+//==================7
+
+  property data_check(wclk, wrst_n, rrst_n, winc, wfull, wptr, wdata, rclk, rinc, rempty, rptr, rdata);
+    integer ptr, data;
+      @(posedge wclk) disable iff (!wrst_n || !rrst_n) (winc && !wfull, ptr=wptr, data=wdata) |=> 
+      @(negedge rclk) ##[0:$](rinc && !rempty, ptr=rptr) ##1 (rdata === data);
+  endproperty
+
+  assert property(data_check(wclk, wrst_n, rrst_n, winc, wfull, wptr, wdata, rclk, rinc, rempty, rptr, rdata))
+  else
+  $info("DATA CHECK FAILEDDDDD");
+
+//=============================
 
 endmodule
 
@@ -214,6 +282,10 @@ module wptr_full
       wfull <= 1'b0;
     else
       wfull <= wfull_val;
+
+  
+  
+
 
 endmodule
 
